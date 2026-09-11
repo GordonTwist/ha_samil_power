@@ -2,6 +2,8 @@
 
 ![Samil Power Logo](images/samil_power_logo.png)
 
+Local copy of https://github.com/timmmmmmmmm/ha_samil_power - to attempt to resolve wakeup issue for multiple inverters
+
 This is a **custom Home Assistant integration** based on the [Solar project](https://github.com/mhvis/solar/) by [mhvis](https://github.com/mhvis). This integration extends the functionality of the original Solar project, making it compatible as a Home Assistant custom component.
 
 ## Credits
