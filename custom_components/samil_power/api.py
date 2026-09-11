@@ -57,14 +57,22 @@ class SamilPowerApiClient:
             
             # Run the connection in a separate thread to avoid blocking
             loop = asyncio.get_event_loop()
-            self._inverters = await loop.run_in_executor(
+            discovered_inverters = await loop.run_in_executor(
                 None, self._connect_inverters
             )
-            self._connected = True
+            self._inverters = discovered_inverters
+            self._connected = len(self._inverters) >= self._inverters_count
             
             LOGGER.info(f"Successfully connected to {len(self._inverters)} inverters")
+            if not self._connected:
+                LOGGER.warning(
+                    "Only connected to %s/%s configured inverters; will retry discovery on next update",
+                    len(self._inverters),
+                    self._inverters_count,
+                )
             
             # Get model info for each inverter
+            self._model_info = {}
             for i, inverter in enumerate(self._inverters):
                 self._model_info[i] = await loop.run_in_executor(
                     None, inverter.model
@@ -167,7 +175,7 @@ class SamilPowerApiClient:
 
     async def async_disconnect(self) -> None:
         """Disconnect from the inverters."""
-        if not self._connected:
+        if not self._inverters:
             return
             
         for inverter in self._inverters:
