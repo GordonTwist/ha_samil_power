@@ -53,3 +53,11 @@ class SamilPowerEntity(CoordinatorEntity[SamilPowerDataUpdateCoordinator]):
         if not self.coordinator.data:
             return {}
         return self.coordinator.data.get(self.inverter_index, {})
+
+    @property
+    def available(self) -> bool:
+        """Return availability for this specific inverter entity."""
+        return (
+            super().available
+            and self.inverter_index in (self.coordinator.data or {})
+        )
