@@ -54,44 +54,31 @@ class SamilPowerApiClient:
 
         try:
             LOGGER.info(f"Attempting to connect to inverters with interface={self._interface}, count={self._inverters_count}")
-
+            
             # Run the connection in a separate thread to avoid blocking
             loop = asyncio.get_event_loop()
             discovered_inverters = await loop.run_in_executor(
                 None, self._connect_inverters
             )
-
-            # Never shrink a previously discovered inverter list on partial discovery.
-            # This avoids entity flapping when one inverter is briefly missed.
-            if len(discovered_inverters) > len(self._inverters):
-                self._inverters = discovered_inverters
-            elif not self._inverters:
-                self._inverters = discovered_inverters
-
-            # Consider ourselves connected when we can talk to at least one inverter.
-            # Keep retrying discovery via update cycles until all expected inverters appear.
-            self._connected = len(discovered_inverters) > 0
-
-            LOGGER.info(
-                "Connected to %s/%s configured inverters (tracking %s)",
-                len(discovered_inverters),
-                self._inverters_count,
-                len(self._inverters),
-            )
-            if len(self._inverters) < self._inverters_count:
+            self._inverters = discovered_inverters
+            self._connected = len(self._inverters) >= self._inverters_count
+            
+            LOGGER.info(f"Successfully connected to {len(self._inverters)} inverters")
+            if not self._connected:
                 LOGGER.warning(
-                    "Only tracking %s/%s configured inverters; will retry discovery on next update",
+                    "Only connected to %s/%s configured inverters; will retry discovery on next update",
                     len(self._inverters),
                     self._inverters_count,
                 )
-
-            # Get model info for each tracked inverter
+            
+            # Get model info for each inverter
+            self._model_info = {}
             for i, inverter in enumerate(self._inverters):
                 self._model_info[i] = await loop.run_in_executor(
                     None, inverter.model
                 )
                 LOGGER.info(f"Inverter {i} model info: {self._model_info[i].get('model_name', 'Unknown')}, SN: {self._model_info[i].get('serial_number', 'Unknown')}")
-
+                
         except InverterNotFoundError as exception:
             msg = f"No inverters found - {exception}"
             LOGGER.error(msg)
@@ -152,10 +139,10 @@ class SamilPowerApiClient:
                 # or if we already have some inverters
                 LOGGER.error(f"Error during inverter connection: {str(e)}")
                 raise
-
+        
         if not inverters:
             raise InverterNotFoundError("No inverters found")
-
+            
         return inverters
 
     async def async_get_data(self) -> Dict[int, Dict]:
@@ -166,21 +153,21 @@ class SamilPowerApiClient:
         try:
             # Run the status requests in a separate thread to avoid blocking
             loop = asyncio.get_event_loop()
-
+            
             # Get status for each inverter
             status_data = {}
             for i, inverter in enumerate(self._inverters):
                 status = await loop.run_in_executor(None, inverter.status)
-
+                
                 # Combine with model info
                 combined_data = {
                     "model": self._model_info.get(i, {}),
                     "status": status
                 }
                 status_data[i] = combined_data
-
+                
             return status_data
-
+            
         except Exception as exception:  # pylint: disable=broad-except
             self._connected = False  # Mark as disconnected on error
             msg = f"Error getting data from inverters - {exception}"
@@ -190,12 +177,12 @@ class SamilPowerApiClient:
         """Disconnect from the inverters."""
         if not self._inverters:
             return
-
+            
         for inverter in self._inverters:
             try:
                 inverter.disconnect()
             except Exception:  # pylint: disable=broad-except
                 pass
-
+                
         self._inverters = []
         self._connected = False
